@@ -1,7 +1,0 @@
-flags: {}
-packages:
-- '.'
-extra-deps:
-- vk-posix-pty-0.2.1
-- natural-sort-0.1.2
-resolver: lts-5.3
