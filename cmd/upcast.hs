@@ -1,14 +1,12 @@
 module Main where
 
-import           Control.Monad (void)
-import qualified Infracast as Infra (scan, accum, dump)
-import           Infracast.Machine (machines2ssh, machines2nix)
-import           Infracast.Types (Reference(..))
 import           Options.Applicative
-import           Upcast.Deploy (nixSystemProfile)
-import           Upcast.Environment (nixPath, icontext, build)
+import           Data.Monoid
+
+import           Upcast.Deploy
+import           Upcast.Environment
 import           Upcast.IO
-import           Upcast.Install (install)
+import           Upcast.Install
 import           Upcast.Monad
 import           Upcast.Types
 
@@ -27,40 +25,15 @@ main = do
     exp = metavar "<expression file>"
     nixArgs = many (argument str (metavar "nix arguments..."))
 
-    opts = subparser cmds `info` header "upcast - infrastructure orchestration"
+    opts = subparser cmds `info` header "upcast - nix orchestration"
 
-    cmds = command "infra"
-           ((putStrLn . machines2ssh <=< Infra.accum <=< icontext) <$> infraCliArgs `info`
-            progDesc "evaluate infrastructure and output ssh_config(5)")
-
-        <> command "infra-tree"
-           ((void . Infra.dump (\(Reference _ k) i -> putStrLn $ ppShow (k,i)) <=< icontext) <$> infraCliArgs `info`
-            progDesc "dump infrastructure tree in json format")
-
-        <> command "infra-nix"
-           ((putStr . machines2nix <=< Infra.accum <=< icontext) <$> infraCliArgs `info`
-            progDesc "evaluate infrastructure and print the nix description")
-
-        <> command "infra-scan"
-           ((pprint <=< Infra.scan <=< icontext) <$> infraCliArgs `info`
-            progDesc "scan for existing infra")
-
-        <> command "build"
+    cmds = command "build"
            ((putStrLn <=< build) <$> buildCli `info`
             progDesc "nix-build with remote forwarding")
-
-        <> command "nix-path"
-           (pure (nixPath >>= putStrLn) `info`
-            progDesc "print effective path to upcast nix expressions")
 
         <> command "install"
            (install <$> installCli `info`
             progDesc "copy a store path closure and set it to a profile")
-
-    infraCliArgs = InfraCli
-      <$> argument str exp
-      <*> (switch (long "verbose" <> short 'v' <> help "enable extra logging") <|> pure False)
-      <*> nixArgs
 
     installCli = Install
       <$> (Remote <$> (strOption (long "target"

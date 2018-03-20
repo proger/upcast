@@ -1,9 +1,7 @@
 module Upcast.Types where
 
 import Data.Text (Text)
-import Data.Aeson (Value)
 import Data.ByteString.Char8 (ByteString)
-import Infracast.Input (Infras(..))
 
 newtype Remote = Remote String
                  deriving Show
@@ -31,14 +29,6 @@ data Install =
 
 data DeliveryMode = Push | Pull String
                   deriving Show
-
--- | CLI arguments to 'infra*'.
-data InfraCli =
-  InfraCli
-  { infraCli_expressionFile :: FilePath
-  , infraCli_verbose :: Bool
-  , infraCli_extra :: [String]
-  } deriving (Show)
 
 -- | Arguments to 'build'.
 data Build =

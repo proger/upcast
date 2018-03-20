@@ -1,10 +1,8 @@
 /result
 /dist
 /.cabal-sandbox*
-/shell.nix
 /.stack-work
 *.aterm
 *.hp
 *.prof
 cabal.sandbox.config
-Playground.hs

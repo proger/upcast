@@ -5,49 +5,23 @@
 module Upcast.Environment where
 
 import           Control.Applicative
-import           Control.Lens ((<&>), (&))
 import           System.Directory (canonicalizePath)
 import           System.Posix.Env (getEnv)
 
-import           Data.Aeson (eitherDecodeStrict)
 import qualified Data.ByteString.Char8 as B8
-import           Data.Maybe (isJust, fromJust)
+import           Data.Maybe (isJust)
 
-import           Infracast.Input (InfraContext(..))
 import           Upcast.Deploy (nixCopyClosureTo, nixRealise, nixSetProfile)
-import           Upcast.IO (expectRight, srsly)
+import           Upcast.IO (srsly)
 import           Upcast.Monad (sequenceMaybe, when)
 import           Upcast.Shell
-import           Upcast.Types (NixContext(..), InfraCli(..),
-                               Build(..))
-
-import           Paths_upcast (getDataFileName)
-
-nixPath :: IO String
-nixPath =
-  fromJust <$> sequenceMaybe [ getEnv "NIX_UPCAST"
-                              , Just <$> getDataFileName "nix"
-                              , Just <$> return "nix" ]
+import           Upcast.Types (NixContext(..), Build(..))
 
 nixContext :: FilePath -> [String] -> IO NixContext
 nixContext file args = do
     nix_expressionFile <- canonicalizePath file
-    upcastPath <- nixPath
-    let nix_args = ["-I", "upcast=" <> upcastPath, "--show-trace"] <> args
+    let nix_args = ["--show-trace"] <> args
     return NixContext{..}
-
-icontext :: InfraCli -> IO InfraContext
-icontext InfraCli{..} = nixContext infraCli_expressionFile infraCli_extra >>= \nix -> do
-  infras <- fgconsume_ (nixInfraInfo nix) <&> eitherDecodeStrict & expectRight
-  return $ InfraContext infraCli_expressionFile infras infraCli_verbose
-
-nixInfraInfo :: NixContext -> Commandline
-nixInfraInfo NixContext{..} =
-  exec "nix-instantiate" (nix_args <>
-                          [ "--argstr", "expr", nix_expressionFile
-                          , "<upcast/eval-infra.nix>"
-                          , "--eval-only", "--strict", "--json"
-                          ])
 
 nixInstantiate :: [String] -> Maybe String -> String -> FilePath -> Commandline
 nixInstantiate nix_args attr exprFile root =
