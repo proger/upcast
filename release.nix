@@ -8,6 +8,10 @@
 #
 # ... and then Nix will supply the correct Haskell development environment for
 # you
+#
+# Last tested version:
+# 18.03pre128481.1098c071e59
+#
 { pkgs ? import <nixpkgs> {} }:
 let
   name = "upcast";
