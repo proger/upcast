@@ -117,7 +117,6 @@ escape xs = if all safe xs then xs else escaped
     f '\0' = ""
     f '"'  = "\\\""
     f '\\' = "\\\\"
-    f '!'  = "\\!"
     f '$'  = "\\$"
     f '`'  = "\\`"
     f x    = [x]
