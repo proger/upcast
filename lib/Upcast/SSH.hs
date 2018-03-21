@@ -20,3 +20,7 @@ sshBaseOptions = [ "-A"
                  , "-o", "PreferredAuthentications=publickey"
                  , "-x"
                  ] <> maybeKey "-F" (unSshConfig ?sshConfig)
+
+copyAsRoot :: (?sshConfig :: SshConfig) => Remote -> FilePath -> Commandline
+copyAsRoot remote f =
+  cat1 f |: ssh remote (sudo (cat0 |> f))

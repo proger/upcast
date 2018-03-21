@@ -8,7 +8,7 @@ newtype AttrName = AttrName { unAttrName :: String } deriving Show
 -- | Per-machine Nix closure install context used during 'upcast install'.
 data Install =
   Install
-  { i_remote :: Remote
+  { i_target :: Remote
   , i_profile :: FilePath
   , i_sshConfig :: SshConfig
   , i_delivery :: DeliveryMode
@@ -22,7 +22,7 @@ data DeliveryMode
 -- | Arguments to 'build'.
 data Build =
   Build
-  { b_builder :: Remote
+  { b_target :: Remote
   , b_sshConfig :: SshConfig
   , b_cat :: Bool
   , b_installProfile :: Maybe FilePath

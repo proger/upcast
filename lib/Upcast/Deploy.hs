@@ -28,28 +28,28 @@ nixCopyClosureTo :: (?sshConfig :: SshConfig) => Remote -> StorePath -> Commandl
 nixCopyClosureTo remote (StorePath path) =
   case remote of
     Remote "localhost" -> exec "ls" ["-ld", "--", path]
-    Remote host -> nixSshEnv (exec "nix-copy-closure" [ "--gzip", "--to", host, path ])
+    Remote host -> nixSshEnv (exec "nix-copy-closure" [ "--gzip", "--sign", "--to", host, path ])
+
+nixCopyClosureToI :: (?sshConfig :: SshConfig) => Install -> Commandline
+nixCopyClosureToI Install{i_target, i_storepath} =
+  nixCopyClosureTo i_target i_storepath
+
+nixCopyClosureFromI :: (?sshConfig :: SshConfig) => Remote -> Install -> Commandline
+nixCopyClosureFromI (Remote from) Install{i_target, i_storepath} =
+  ssh i_target (nixSshEnv (exec "nix-copy-closure" ["--gzip", "--sign", "--from", from
+                                                   , unStorePath i_storepath]))
 
 nixSystemProfile :: FilePath
 nixSystemProfile = "/nix/var/nix/profiles/system"
 
 nixSetProfileI :: (?sshConfig :: SshConfig) => Install -> Commandline
-nixSetProfileI Install{i_remote, i_profile, i_storepath} =
-  ssh i_remote (nixSetProfile i_profile i_storepath)
+nixSetProfileI Install{i_target, i_profile, i_storepath} =
+  ssh i_target (nixSetProfile i_profile i_storepath)
 
 nixSwitchToConfiguration :: (?sshConfig :: SshConfig) => Install -> Commandline
-nixSwitchToConfiguration Install{i_remote} =
-  ssh i_remote (env [("NIXOS_NO_SYNC", "1")]
+nixSwitchToConfiguration Install{i_target} =
+  ssh i_target (env [("NIXOS_NO_SYNC", "1")]
                     (exec (nixSystemProfile <> "/bin/switch-to-configuration") ["switch"]))
-
-nixCopyClosureToI :: (?sshConfig :: SshConfig) => Install -> Commandline
-nixCopyClosureToI Install{i_remote, i_storepath} =
-  nixCopyClosureTo i_remote i_storepath
-
-nixCopyClosureFromI :: (?sshConfig :: SshConfig) => Remote -> Install -> Commandline
-nixCopyClosureFromI (Remote from) Install{i_remote, i_storepath} =
-  ssh i_remote (nixSshEnv (exec "nix-copy-closure" ["--gzip", "--from", from
-                                                   , unStorePath i_storepath]))
 
 testClosureCache :: String -> String
 testClosureCache cache =
@@ -64,11 +64,7 @@ prepKnownHost (testClosureCache -> knownHost) =
   exec "ssh-keyscan" ["-t", "rsa,dsa", knownHost] |> "~/.ssh/known_hosts"
 
 prepKnownHostI :: (?sshConfig :: SshConfig) => String -> Install -> Commandline
-prepKnownHostI cache Install{i_remote} = ssh i_remote (prepKnownHost cache)
-
-copyAsRoot :: (?sshConfig :: SshConfig) => Remote -> FilePath -> Commandline
-copyAsRoot remote f =
-  cat1 f |: ssh remote (sudo (cat0 |> f))
+prepKnownHostI cache Install{i_target} = ssh i_target (prepKnownHost cache)
 
 nixInstantiate :: [String] -> Maybe AttrName -> FilePath -> FilePath -> Commandline
 nixInstantiate nix_args attr exprFile root =
@@ -97,6 +93,11 @@ nixInstantiateNixos nix_args attr exprFile root =
         , "--indirect"
         ])
 
+copyKeys :: (?sshConfig :: SshConfig) => Remote -> Commandline
+copyKeys remote =
+  copyAsRoot remote "/etc/nix/signing-key.pub"
+  <> copyAsRoot remote "/etc/nix/signing-key.sec"
+
 install :: Install -> IO ()
 install install@Install{..} = do
   let ?sshConfig = i_sshConfig
@@ -105,6 +106,8 @@ install install@Install{..} = do
   case mcache of
     Nothing    -> return ()
     Just cache -> fgrun (prepKnownHostI cache install)
+
+  fgrun (copyKeys i_target)
 
   case i_delivery of
     Push                      -> fgrun (nixCopyClosureToI install)
@@ -121,7 +124,7 @@ nixQueryDrvOutput (StorePath drv) = exec "nix-store" ["-qu", drv]
 build :: Build -> IO StorePath
 build Build{..} = do
   let ?sshConfig = b_sshConfig
-  let ssh_ = ssh b_builder
+  let ssh_ = ssh b_target
   let instantiate =
         case b_buildMode of
           BuildPackage -> nixInstantiate
@@ -131,7 +134,8 @@ build Build{..} = do
   let nix_args = ["--show-trace"] <> b_extra
   drv <- fmap StorePath (fgtmp (instantiate nix_args b_attribute nix_expressionFile))
 
-  fgrun (nixCopyClosureTo b_builder drv)
+  fgrun (copyKeys b_target)
+  fgrun (nixCopyClosureTo b_target drv)
   fgrun (nixRealise drv)
   out <- fmap (StorePath . B8.unpack) (fgconsume_ (ssh_ (nixQueryDrvOutput drv)))
 
