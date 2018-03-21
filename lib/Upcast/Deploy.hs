@@ -120,25 +120,25 @@ nixQueryDrvOutput (StorePath drv) = exec "nix-store" ["-qu", drv]
 
 build :: Build -> IO StorePath
 build Build{..} = do
-    let ?sshConfig = b_sshConfig
-    let ssh_ = ssh b_builder
-    let instantiate =
-          case b_buildMode of
-            BuildPackage -> nixInstantiate
-            BuildNixos -> nixInstantiateNixos
+  let ?sshConfig = b_sshConfig
+  let ssh_ = ssh b_builder
+  let instantiate =
+        case b_buildMode of
+          BuildPackage -> nixInstantiate
+          BuildNixos -> nixInstantiateNixos
 
-    nix_expressionFile <- canonicalizePath b_expressionFile
-    let nix_args = ["--show-trace"] <> b_extra
-    drv <- fmap StorePath (fgtmp (instantiate nix_args b_attribute nix_expressionFile))
+  nix_expressionFile <- canonicalizePath b_expressionFile
+  let nix_args = ["--show-trace"] <> b_extra
+  drv <- fmap StorePath (fgtmp (instantiate nix_args b_attribute nix_expressionFile))
 
-    fgrun (nixCopyClosureTo b_builder drv)
-    fgrun (nixRealise drv)
-    out <- fmap (StorePath . B8.unpack) (fgconsume_ (ssh_ (nixQueryDrvOutput drv)))
+  fgrun (nixCopyClosureTo b_builder drv)
+  fgrun (nixRealise drv)
+  out <- fmap (StorePath . B8.unpack) (fgconsume_ (ssh_ (nixQueryDrvOutput drv)))
 
-    when b_cat (void (fgrun (ssh_ (cat1 (unStorePath out)))))
+  when b_cat (void (fgrun (ssh_ (cat1 (unStorePath out)))))
 
-    case b_installProfile of
-      Nothing   -> return ()
-      Just prof -> void (fgrun (ssh_ (nixSetProfile prof out)))
+  case b_installProfile of
+    Nothing   -> return ()
+    Just prof -> void (fgrun (ssh_ (nixSetProfile prof out)))
 
-    return out
+  return out
