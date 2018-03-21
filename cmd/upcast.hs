@@ -5,7 +5,6 @@ import           Data.Monoid
 
 import           Upcast.Deploy
 import           Upcast.IO
-import           Upcast.Install
 import           Upcast.Monad
 import           Upcast.Types
 
@@ -22,9 +21,6 @@ main = do
                          , prefColumns = 80
                          }
 
-    exp = metavar "<expression file>"
-    nixArgs = many (argument str (metavar "nix arguments..."))
-
     opts = subparser cmds `info` header "upcast - nix orchestration"
 
     cmds = command "build"
@@ -34,6 +30,10 @@ main = do
         <> command "install"
            (install <$> installCli `info`
             progDesc "copy a store path closure and set it to a profile")
+
+    exp = metavar "<expression file>"
+
+    nixArgs = many (argument str (metavar "nix arguments..."))
 
     remoteHost =
       Remote <$> (strOption
@@ -57,12 +57,20 @@ main = do
                   <> help help')
 
     deliveryMode =
-      ((Pull . Remote) <$>
+      (Pull . Remote <$>
        strOption (long "pull"
                   <> short 'f'
                    <> metavar "FROM"
                    <> help "try to pull store paths from host (relative to ADDRESS)"))
       <|> pure Push
+
+    attribute =
+      AttrName <$> strOption (short 'A'
+                               <> metavar "ATTRIBUTE"
+                               <> help "build a specific attribute in the expression file")
+
+    storePath =
+      StorePath <$> argument str (metavar "STORE_PATH")
 
     installCli = Install
       <$> remoteHost
@@ -70,7 +78,7 @@ main = do
            <|> pure nixSystemProfile)
       <*> ssh_config
       <*> deliveryMode
-      <*> StorePath <$> argument str (metavar "STORE_PATH")
+      <*> storePath
 
     buildCli = Build
       <$> remoteHost
@@ -82,8 +90,6 @@ main = do
       <*> flag BuildPackage BuildNixos (long "nixos"
                                          <> short 'n'
                                          <> help "the expression to build is nixos configuration")
-      <*> optional (strOption (short 'A'
-                     <> metavar "ATTRIBUTE"
-                     <> help "build a specific attribute in the expression file"))
+      <*> optional attribute
       <*> argument str exp
       <*> nixArgs

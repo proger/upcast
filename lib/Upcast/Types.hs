@@ -26,9 +26,9 @@ data Build =
   , b_sshConfig :: SshConfig
   , b_cat :: Bool
   , b_installProfile :: Maybe FilePath
+  , b_buildMode :: BuildMode
   , b_attribute :: Maybe AttrName
   , b_expressionFile :: FilePath
-  , b_buildMode :: BuildMode
   , b_extra :: [String]
   } deriving (Show)
 
