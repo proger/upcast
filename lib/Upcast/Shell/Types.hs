@@ -1,7 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Upcast.Shell.Types (
   (<>) -- from Data.Semigroup
@@ -24,6 +23,7 @@ module Upcast.Shell.Types (
 , Str
 , toString
 , maybeKey
+, maybeKey'
 ) where
 
 import Data.Proxy
@@ -100,7 +100,7 @@ sha (Redir exp file)        = "{" <> sha exp <> ">" <> arg file <> "; }"
 sha (SSH "localhost" _ exp) = sha exp
 sha (SSH host op exp)       = "ssh" <> args op <> arg host <> arg (sh exp)
 
-sh :: Expr [String] -> String
+sh :: Commandline -> String
 sh = render . sha
 
 arg :: String -> Arg
@@ -128,3 +128,6 @@ escape xs = if all safe xs then xs else escaped
 
 maybeKey :: String -> Maybe String -> [String]
 maybeKey k = maybe mempty (\v -> [k, v])
+
+maybeKey' :: [String] -> Maybe String -> [String]
+maybeKey' k = maybe mempty (\v -> k <> [v])

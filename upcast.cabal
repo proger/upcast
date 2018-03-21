@@ -42,17 +42,21 @@ library
     , unix
     , unordered-containers
     , vk-posix-pty >= 0.2.1
-  exposed-modules:
-      Upcast.Install
-      Upcast.Environment
-      Upcast.Monad
-      Upcast.IO
-      Upcast.Deploy
-      Upcast.Shell
-      Upcast.Shell.Run
-      Upcast.Shell.Temp
-      Upcast.Shell.Types
-      Upcast.Types
+  exposed-modules: Upcast.Deploy
+                   Upcast.Monad
+                   Upcast.IO
+                   Upcast.SSH
+                   Upcast.Shell
+                   Upcast.Shell.Run
+                   Upcast.Types
+  other-modules: Upcast.Shell.Commands
+                 Upcast.Shell.Types
+                 Upcast.Shell.Temp
+  default-extensions: OverloadedStrings
+                      NamedFieldPuns
+                      ImplicitParams
+                      RecordWildCards
+                      KindSignatures
   default-language: Haskell2010
 
 executable upcast
@@ -60,6 +64,10 @@ executable upcast
   hs-source-dirs:
       cmd
   default-extensions: OverloadedStrings
+                      NamedFieldPuns
+                      ImplicitParams
+                      RecordWildCards
+                      KindSignatures
   build-depends:
       upcast
     , base < 5

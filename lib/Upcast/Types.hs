@@ -1,42 +1,37 @@
 module Upcast.Types where
 
-import Data.Text (Text)
-import Data.ByteString.Char8 (ByteString)
-
-newtype Remote = Remote String
-                 deriving Show
-
-type StorePath = FilePath
-type StorePathBS = ByteString
-type Hostname = Text
-type Executable = String
-
-data NixContext =
-  NixContext
-  { nix_expressionFile :: FilePath
-  , nix_args :: [String]
-  } deriving (Show)
+newtype Remote = Remote String deriving Show
+newtype SshConfig = SshConfig { unSshConfig :: Maybe FilePath } deriving Show
+newtype StorePath = StorePath { unStorePath :: FilePath } deriving Show
+newtype AttrName = AttrName { unAttrName :: String } deriving Show
 
 -- | Per-machine Nix closure install context used during 'upcast install'.
 data Install =
   Install
   { i_remote :: Remote
   , i_profile :: FilePath
-  , i_sshConfig :: Maybe FilePath
+  , i_sshConfig :: SshConfig
   , i_delivery :: DeliveryMode
   , i_storepath :: StorePath
   } deriving (Show)
 
-data DeliveryMode = Push | Pull String
-                  deriving Show
+data DeliveryMode
+  = Push | Pull Remote
+    deriving (Show)
 
 -- | Arguments to 'build'.
 data Build =
   Build
-  { b_builder :: String
-  , b_attribute :: Maybe String
+  { b_builder :: Remote
+  , b_sshConfig :: SshConfig
   , b_cat :: Bool
   , b_installProfile :: Maybe FilePath
+  , b_attribute :: Maybe AttrName
   , b_expressionFile :: FilePath
+  , b_buildMode :: BuildMode
   , b_extra :: [String]
   } deriving (Show)
+
+data BuildMode
+  = BuildPackage | BuildNixos
+    deriving (Show)

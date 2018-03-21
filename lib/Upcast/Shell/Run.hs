@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Upcast.Shell.Run where
@@ -9,6 +8,7 @@ import           Upcast.IO (openFile, warn, warn8, applyColor)
 
 import           Control.Monad.Trans.Resource
 
+import           System.Environment (lookupEnv)
 import           System.FilePath (FilePath)
 import           System.Process (createProcess, waitForProcess, interruptProcessGroupOf,
                                   CreateProcess(..), CmdSpec(..), StdStream(..), shell,
@@ -18,7 +18,6 @@ import           GHC.IO.Handle (hClose, Handle)
 import           System.IO.Error (tryIOError)
 import           System.Posix.IO (createPipe, fdToHandle)
 import           System.Posix.Pty (spawnWithPty, readPty, Pty)
-import           System.Posix.Env (getEnv)
 import qualified Data.List as L
 import           Data.Monoid
 import           Data.Time.Clock
@@ -51,11 +50,12 @@ measure action = do
     then' <- getCurrentTime
     return (diffUTCTime then' now, result)
 
-fgrunProxy :: Commandline -> IO ExitCode
-fgrunProxy cmd = do
-  mPty <- getEnv "UPCAST_NO_PTY"
-  let f = maybe runPty (const run) mPty
-  fgrun1 f cmd
+fgrun :: Commandline -> IO ExitCode
+fgrun cmd = do
+  noPty <- lookupEnv "UPCAST_NO_PTY"
+  case noPty of
+    Nothing -> fgrunPty cmd
+    Just _ -> fgrunPipe cmd
 
 fgrunPipe :: Commandline -> IO ExitCode
 fgrunPipe = fgrun1 run
