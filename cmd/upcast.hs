@@ -15,12 +15,13 @@ main = do
     hSetBuffering stderr LineBuffering
     join $ customExecParser prefs opts
   where
-    prefs = ParserPrefs { prefMultiSuffix = ""
-                        , prefDisambiguate = True
-                        , prefShowHelpOnError = True
-                        , prefBacktrack = True
-                        , prefColumns = 80
-                        }
+    prefs = defaultPrefs { prefMultiSuffix = ""
+                         , prefDisambiguate = True
+                         , prefShowHelpOnError = True
+                         , prefShowHelpOnEmpty = True
+                         , prefBacktrack = True
+                         , prefColumns = 80
+                         }
 
     exp = metavar "<expression file>"
     nixArgs = many (argument str (metavar "nix arguments..."))
