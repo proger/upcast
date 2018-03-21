@@ -39,6 +39,7 @@ nixCopyClosureFromI (Remote from) Install{i_target, i_storepath} =
   ssh i_target (nixSshEnv (exec "nix-copy-closure" ["--gzip", "--sign", "--from", from
                                                    , unStorePath i_storepath]))
 
+
 nixSystemProfile :: FilePath
 nixSystemProfile = "/nix/var/nix/profiles/system"
 
@@ -136,7 +137,7 @@ build Build{..} = do
 
   fgrun (copyKeys b_target)
   fgrun (nixCopyClosureTo b_target drv)
-  fgrun (nixRealise drv)
+  fgrun (ssh_ (nixRealise drv))
   out <- fmap (StorePath . B8.unpack) (fgconsume_ (ssh_ (nixQueryDrvOutput drv)))
 
   when b_cat (void (fgrun (ssh_ (cat1 (unStorePath out)))))
