@@ -7,7 +7,7 @@ import           System.Environment (lookupEnv)
 import           Data.List (break)
 import qualified Data.ByteString.Char8 as B8
 
-import           Upcast.IO (expect)
+import           Upcast.IO
 import           Upcast.Monad
 import qualified Upcast.Shell as Shell
 import           Upcast.Shell hiding (ssh, fgrun)
@@ -18,11 +18,11 @@ fgrun :: Commandline -> IO ()
 fgrun = expect ExitSuccess "install step failed" . Shell.fgrun
 
 nixRealise :: StorePath -> Commandline
-nixRealise (StorePath drv) = exec "nix-store" ["--realise", drv]
+nixRealise (StorePath drv) = exec "nix-store" ["-Q", "--realise", drv]
 
-nixSetProfile :: FilePath -> StorePath -> Commandline
-nixSetProfile i_profile i_storepath = exec "nix-env" ["-p", i_profile
-                                                     , "--set", unStorePath i_storepath]
+nixSetProfile :: NixProfile -> StorePath -> Commandline
+nixSetProfile (NixProfile i_profile) (StorePath i_storepath) =
+  sudo (exec "nix-env" ["-p", i_profile , "--set", i_storepath])
 
 nixCopyClosureTo :: (?sshConfig :: SshConfig) => Remote -> StorePath -> Commandline
 nixCopyClosureTo remote (StorePath path) =
@@ -39,8 +39,7 @@ nixCopyClosureFromI (Remote from) Install{i_target, i_storepath} =
   ssh i_target (nixSshEnv (exec "nix-copy-closure" ["--gzip", "--sign", "--from", from
                                                    , unStorePath i_storepath]))
 
-
-nixSystemProfile :: FilePath
+nixSystemProfile :: NixProfile
 nixSystemProfile = "/nix/var/nix/profiles/system"
 
 nixSetProfileI :: (?sshConfig :: SshConfig) => Install -> Commandline
@@ -48,9 +47,9 @@ nixSetProfileI Install{i_target, i_profile, i_storepath} =
   ssh i_target (nixSetProfile i_profile i_storepath)
 
 nixSwitchToConfiguration :: (?sshConfig :: SshConfig) => Install -> Commandline
-nixSwitchToConfiguration Install{i_target} =
-  ssh i_target (env [("NIXOS_NO_SYNC", "1")]
-                    (exec (nixSystemProfile <> "/bin/switch-to-configuration") ["switch"]))
+nixSwitchToConfiguration Install{i_target, i_storepath} =
+  ssh i_target (sudo (env [("NIXOS_NO_SYNC", "1")]
+                      (exec (unStorePath i_storepath <> "/bin/switch-to-configuration") ["switch"])))
 
 testClosureCache :: String -> String
 testClosureCache cache =
@@ -116,11 +115,31 @@ install install@Install{..} = do
     Pull from                 -> fgrun (nixCopyClosureFromI from install)
 
   fgrun (nixSetProfileI install)
-  when (i_profile == nixSystemProfile) $ fgrun (nixSwitchToConfiguration install)
+  when i_switch (fgrun (nixSwitchToConfiguration install))
 
 
 nixQueryDrvOutput :: StorePath -> Commandline
 nixQueryDrvOutput (StorePath drv) = exec "nix-store" ["-qu", drv]
+
+canonicalizeNixPath :: FilePath -> IO FilePath
+canonicalizeNixPath path@('<':_) = return path
+canonicalizeNixPath path = canonicalizePath path
+
+mkdir :: FilePath -> Commandline
+mkdir dir = exec "mkdir" ["-p", dir]
+
+testFile :: FilePath -> Commandline
+testFile fp = exec "test" ["-f", fp]
+
+nqPath, fqPath :: FilePath
+nqPath = "/nix/var/nix/profiles/nq/bin/nq"
+fqPath = "/nix/var/nix/profiles/nq/bin/fq"
+
+nq :: Nqdir -> Commandline -> Commandline
+nq (Nqdir nqdir) cmd = mkdir nqdir <> env [("NQDIR", nqdir)] (exec nqPath ["sh", "-c", sh cmd])
+
+fq :: Nqdir -> Commandline
+fq (Nqdir nqdir) = env [("NQDIR", nqdir)] (exec fqPath [])
 
 build :: Build -> IO StorePath
 build Build{..} = do
@@ -130,20 +149,38 @@ build Build{..} = do
         case b_buildMode of
           BuildPackage -> nixInstantiate
           BuildNixos -> nixInstantiateNixos
+  let needsNq = maybe False (const True) b_nqdir
 
-  nix_expressionFile <- canonicalizePath b_expressionFile
+  when needsNq (fgrun (ssh_ (testFile nqPath)))
+
+  nix_expressionFile <- canonicalizeNixPath b_expressionFile
   let nix_args = ["--show-trace"] <> b_extra
   drv <- fmap StorePath (fgtmp (instantiate nix_args b_attribute nix_expressionFile))
 
   fgrun (copyKeys b_target)
   fgrun (nixCopyClosureTo b_target drv)
-  fgrun (ssh_ (nixRealise drv))
+
+  case b_nqdir of
+    Nothing -> fgrun (ssh_ (nixRealise drv))
+    Just nqdir -> do
+      fgrun (ssh_ (nq nqdir (nixRealise drv)))
+
+      warn [applyColor Green ("it is ok to Ctrl-C after nq -- nix-store --realise will run in the background.")]
+      case b_installProfile of
+        Nothing -> return ()
+        Just prof -> do
+          warn [applyColor Red ("however if you detach you will have to install "
+                                 <> show prof <> " manually later")]
+
+
+      fgrun (ssh_ (fq nqdir))
+
   out <- fmap (StorePath . B8.unpack) (fgconsume_ (ssh_ (nixQueryDrvOutput drv)))
 
-  when b_cat (void (fgrun (ssh_ (cat1 (unStorePath out)))))
+  when b_cat (fgrun (ssh_ (cat1 (unStorePath out))))
 
   case b_installProfile of
     Nothing   -> return ()
-    Just prof -> void (fgrun (ssh_ (nixSetProfile prof out)))
+    Just prof -> fgrun (ssh_ (nixSetProfile prof out))
 
   return out

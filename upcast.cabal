@@ -57,6 +57,7 @@ library
                       ImplicitParams
                       RecordWildCards
                       KindSignatures
+                      GeneralizedNewtypeDeriving
   default-language: Haskell2010
 
 executable upcast
@@ -70,6 +71,7 @@ executable upcast
                       KindSignatures
   build-depends:
       upcast
+    , ansi-wl-pprint
     , base < 5
     , optparse-applicative >= 0.11.0.1
   default-language: Haskell2010

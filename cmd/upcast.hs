@@ -2,6 +2,7 @@ module Main where
 
 import           Options.Applicative
 import           Data.Monoid
+import qualified Text.PrettyPrint.ANSI.Leijen as PP
 
 import           Upcast.Deploy
 import           Upcast.IO
@@ -21,15 +22,17 @@ main = do
                          , prefColumns = 80
                          }
 
-    opts = subparser cmds `info` header "upcast - nix orchestration"
+    opts = subparser cmds `info`
+           (header "upcast - nix orchestration"
+            <> footerDoc (Just (PP.string examples)))
 
     cmds = command "build"
            ((putStrLn . unStorePath <=< build) <$> buildCli `info`
-            progDesc "nix-build with remote forwarding")
+            progDesc "nix-instantiate locally, nix-store --realise remotely")
 
         <> command "install"
            (install <$> installCli `info`
-            progDesc "copy a store path closure and set it to a profile")
+            progDesc ("smart nix-copy-closure and nix-env --profile --set"))
 
     exp = metavar "<expression file>"
 
@@ -51,10 +54,10 @@ main = do
                                <> help "use FILE as ssh_config(5)"))
 
     profile help' =
-      strOption (long "profile"
-                  <> short 'p'
-                  <> metavar "PROFILE"
-                  <> help help')
+      mkNixProfile <$> strOption (long "profile"
+                                  <> short 'p'
+                                  <> metavar "PROFILE"
+                                  <> help help')
 
     deliveryMode =
       (Pull . Remote <$>
@@ -72,12 +75,22 @@ main = do
     storePath =
       StorePath <$> argument str (metavar "STORE_PATH")
 
+    nqDir =
+      Nqdir <$> strOption (long "nqdir"
+                           <> short 'N'
+                           <> metavar "NQDIR"
+                           <> help ("enqueue the build job using nq(1), needs "
+                                     <> nqPath <> " to be available."))
+
     installCli = Install
       <$> remoteHost
-      <*> (profile ("set STORE_PATH to PROFILE (defaults to " <> nixSystemProfile <> ")")
+      <*> (profile ("set STORE_PATH to PROFILE (defaults to " <> show nixSystemProfile <> "). prepends /nix/var/nix/profiles if needed.")
            <|> pure nixSystemProfile)
       <*> ssh_config
       <*> deliveryMode
+      <*> switch (long "switch"
+                  <> short 's'
+                  <> help "run `STORE_PATH/bin/switch-to-configuration switch' after copy")
       <*> storePath
 
     buildCli = Build
@@ -86,10 +99,18 @@ main = do
       <*> switch (long "cat"
                   <> short 'c'
                   <> help "try to cat output store path contents to stdout after build")
-      <*> optional (profile "set the output store path to PROFILE on the HOST")
+      <*> optional nqDir
+      <*> optional (profile "set the output store path to PROFILE on the HOST. prepends /nix/var/nix/profiles if needed.")
       <*> flag BuildPackage BuildNixos (long "nixos"
                                          <> short 'n'
                                          <> help "the expression to build is nixos configuration")
       <*> optional attribute
       <*> argument str exp
       <*> nixArgs
+
+
+examples = "Examples:\n\n\
+           \  # build pkgs.nq for linux on example.com and install it to /nix/var/nix/profiles/nq\n\
+           \  upcast build -t example.com -p nq -A nq '<nixpkgs>' -- --argstr system x86_64-linux\n\
+           \\n\
+           \"
