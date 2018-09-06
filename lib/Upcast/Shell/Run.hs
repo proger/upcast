@@ -37,11 +37,14 @@ type ProcessSource i m = ConduitM i (Flush ByteString) m ()
 
 data Mode = Consume | Run
 
+instance Semigroup ExitCode where
+    _ <> e@(ExitFailure _) = e
+    e@(ExitFailure _) <> _ = e
+    a <> b = a
+
 instance Monoid ExitCode where
     mempty = ExitSuccess
-    _ `mappend` e@(ExitFailure _) = e
-    e@(ExitFailure _) `mappend` _ = e
-    a `mappend` b = a
+    mappend = (<>)
 
 measure :: IO a -> IO (NominalDiffTime, a)
 measure action = do

@@ -6,7 +6,7 @@ newtype Remote = Remote String deriving Show
 newtype SshConfig = SshConfig { unSshConfig :: Maybe FilePath } deriving Show
 newtype StorePath = StorePath { unStorePath :: FilePath } deriving Show
 newtype AttrName = AttrName { unAttrName :: String } deriving Show
-newtype NixProfile = NixProfile { unNixProfile :: FilePath } deriving (Monoid, IsString)
+newtype NixProfile = NixProfile { unNixProfile :: FilePath } deriving (Semigroup, Monoid, IsString)
 newtype Nqdir = Nqdir { unNqdir :: FilePath } deriving Show
 
 mkNixProfile p@('/':_) = NixProfile p
